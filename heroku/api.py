@@ -88,14 +88,14 @@ class HerokuCore(object):
         except ValueError:
             raise ResponseError('The API Response was not valid.')
 
-    def _http_resource(self, method, resource, params=None, data=None):
+    def _http_resource(self, method, resource, params=None, data=None, timeout=None):
         """Makes an HTTP request."""
 
         if not is_collection(resource):
             resource = [resource]
 
         url = self._url_for(*resource)
-        r = self._session.request(method, url, params=params, data=data)
+        r = self._session.request(method, url, params=params, data=data, timeout=timeout)
 
         if r.status_code == 422:
             http_error = HTTPError('%s Client Error: %s' %
@@ -107,16 +107,16 @@ class HerokuCore(object):
 
         return r
 
-    def _get_resource(self, resource, obj, params=None, **kwargs):
+    def _get_resource(self, resource, obj, params=None, timeout=None, **kwargs):
         """Returns a mapped object from an HTTP resource."""
-        r = self._http_resource('GET', resource, params=params)
+        r = self._http_resource('GET', resource, params=params, timeout=timeout)
         item = self._resource_deserialize(r.content.decode("utf-8"))
 
         return obj.new_from_dict(item, h=self, **kwargs)
 
-    def _get_resources(self, resource, obj, params=None, map=None, **kwargs):
+    def _get_resources(self, resource, obj, params=None, map=None, timeout=None, **kwargs):
         """Returns a list of mapped objects from an HTTP resource."""
-        r = self._http_resource('GET', resource, params=params)
+        r = self._http_resource('GET', resource, params=params, timeout=timeout)
         d_items = self._resource_deserialize(r.content.decode("utf-8"))
 
         items =  [obj.new_from_dict(item, h=self, **kwargs) for item in d_items]
@@ -135,31 +135,34 @@ class HerokuCore(object):
 class Heroku(HerokuCore):
     """The main Heroku class."""
 
-    def __init__(self, session=None):
+    def __init__(self, session=None, timeout=None):
         super(Heroku, self).__init__(session=session)
+        self.timeout = timeout
 
     def __repr__(self):
         return '<heroku-client at 0x%x>' % (id(self))
 
     @property
     def account(self):
-        return self._get_resource(('account'), Account)
+        return self._get_resource(('account'), Account, timeout=self.timeout)
 
     @property
     def addons(self):
-        return self._get_resources(('addons'), Addon)
+        return self._get_resources(('addons'), Addon, timeout=self.timeout)
 
     @property
     def apps(self):
-        return self._get_resources(('apps'), App)
+        return self._get_resources(('apps'), App, timeout=self.timeout)
 
     @property
     def keys(self):
-        return self._get_resources(('user', 'keys'), Key, map=SSHKeyListResource)
+        return self._get_resources(('user', 'keys'), Key, map=SSHKeyListResource, timeout=self.timeout)
 
     @property
     def labs(self):
-        return self._get_resources(('features'), Feature, map=filtered_key_list_resource_factory(lambda obj: obj.kind == 'user'))
+        return self._get_resources(('features'), Feature,
+                                   map=filtered_key_list_resource_factory(lambda obj: obj.kind == 'user'),
+                                   timeout=self.timeout)
 
 
 
